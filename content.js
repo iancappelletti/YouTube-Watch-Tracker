@@ -43,6 +43,24 @@
     }
   }
 
+  // Polls getCreatorInfo() up to maxAttempts times with intervalMs between
+  // each try, resolving as soon as a non-null result is found.
+  // This is necessary on hard page loads where the extension content script
+  // runs before YouTube has injected the <link itemprop="url"> element.
+  function waitForCreatorInfo(maxAttempts, intervalMs, callback) {
+    var attempts = 0;
+    function attempt() {
+      attempts++;
+      var creator = getCreatorInfo();
+      if (creator.handle !== null || attempts >= maxAttempts) {
+        callback(creator);
+      } else {
+        setTimeout(attempt, intervalMs);
+      }
+    }
+    attempt();
+  }
+
   function report(originvideoId) {
     if (!originvideoId) return;
     var now = Date.now();
@@ -54,8 +72,12 @@
     // navigation — the object still reflects the previous video immediately
     // after yt-navigate-finish. A 3 000 ms delay gives the player API response
     // time to land and overwrite it before we read the handle.
-    setTimeout(function () {
-      var creator = getCreatorInfo();
+    //
+    // On hard page loads the <link itemprop="url"> element may not yet be in
+    // the DOM when the content script first executes, so we poll for it with
+    // up to 20 attempts at 200 ms intervals (4 s total budget) before giving
+    // up. This prevents the first entry from being recorded with null values.
+    waitForCreatorInfo(20, 200, function (creator) {
       chrome.runtime.sendMessage({
         type: "YT_VIDEO_PLAYED",
         originvideoId: originvideoId,
@@ -63,7 +85,7 @@
         handle: creator.handle,
         channelUrl: creator.channelUrl,
       });
-    }, 3000);
+    });
   }
 
   function checkURL(url) {
