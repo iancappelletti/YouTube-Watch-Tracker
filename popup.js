@@ -138,7 +138,8 @@
   // ── Copy JSON button ──────────────────────────────────────────────────────
   btnCopy.addEventListener("click", () => {
     chrome.runtime.sendMessage({ type: "GET_HISTORY" }, (response) => {
-      const json = JSON.stringify(response.history || [], null, 2);
+      const sorted = [...(response.history || [])].reverse();
+      const json = JSON.stringify(sorted, null, 2);
       navigator.clipboard.writeText(json).then(() => {
         showToast("Copied to clipboard");
       }).catch(() => {
